@@ -84,7 +84,7 @@
                 </span>
                 <i data-lucide="external-link" class="w-3.5 h-3.5 text-slate-400"></i>
             </a>
-            <p class="text-center text-[11px] text-slate-500 pt-1">© 2026 Teemu Karjalainen</p>
+            <p class="text-center text-[11px] text-slate-500 pt-1">© 2026 Teemu Karjalainen · <a href="admin.html" class="hover:text-slate-300">Admin</a></p>
         </div>
     </aside>
 
@@ -208,13 +208,16 @@
 
         async function fetchGitHubRepos() {
             try {
-                const response = await fetch(`https://api.github.com/users/${GITHUB_USERNAME}/repos?sort=updated&per_page=100`);
+                const [response, hidden] = await Promise.all([
+                    fetch(`https://api.github.com/users/${GITHUB_USERNAME}/repos?sort=updated&per_page=100`),
+                    fetchHiddenProjects()
+                ]);
                 if (!response.ok) throw new Error('Virhe haettaessa GitHub-projekteja');
                 
                 const data = await response.json();
                 
-                // Muotoillaan datasta tarvittava objekti
-                projects = data.map(repo => {
+                // Muotoillaan datasta tarvittava objekti (admin-paneelissa piilotetut jätetään pois)
+                projects = data.filter(repo => !hidden.includes(repo.name)).map(repo => {
                     // Generoidaan GitHub Pages -osoite (.io)
                     const pagesUrl = `https://${GITHUB_USERNAME.toLowerCase()}.github.io/${repo.name}/`;
                     
@@ -237,6 +240,17 @@
                 lucide.createIcons();
             } catch (error) {
                 loadingState.innerHTML = `<p class="text-red-400 text-sm">Projektiadapin lataus epäonnistui. Tarkista verkkoyhteys.</p>`;
+            }
+        }
+
+        // Piilotettavat projektit määritellään admin.html-paneelissa (projects.json)
+        async function fetchHiddenProjects() {
+            try {
+                const response = await fetch('projects.json', { cache: 'no-cache' });
+                if (!response.ok) return [];
+                return (await response.json()).hidden || [];
+            } catch {
+                return [];
             }
         }
 

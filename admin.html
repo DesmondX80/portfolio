@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="fi" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Admin | Portfolio</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            900: '#0f172a',
+                            800: '#1e293b',
+                            700: '#334155',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-dark-900 text-slate-100 min-h-full font-sans antialiased">
+
+    <div class="max-w-3xl mx-auto p-6 md:p-10 space-y-6">
+
+        <div class="flex items-center justify-between">
+            <div class="space-y-1">
+                <div class="flex items-center gap-2 text-blue-400 text-xs font-semibold uppercase tracking-wider">
+                    <i data-lucide="settings" class="w-4 h-4"></i> Hallintapaneeli
+                </div>
+                <h1 class="text-2xl font-bold text-white">Portfolion projektit</h1>
+            </div>
+            <a href="./" class="text-sm text-slate-400 hover:text-white flex items-center gap-1">
+                <i data-lucide="arrow-left" class="w-4 h-4"></i> Portfolioon
+            </a>
+        </div>
+
+        <!-- KIRJAUTUMINEN -->
+        <form id="login-view" class="hidden bg-dark-800 border border-slate-700 rounded-2xl p-6 space-y-4">
+            <p class="text-sm text-slate-300">Syötä salasana hallintapaneeliin.</p>
+            <input type="password" id="login-password" autocomplete="current-password" placeholder="Salasana"
+                   class="w-full bg-dark-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500">
+            <div class="flex items-center justify-between">
+                <a href="?setup" class="text-xs text-slate-500 hover:text-slate-300">Vaihda salasana / token</a>
+                <button type="submit" class="px-5 py-2 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white">Kirjaudu</button>
+            </div>
+        </form>
+
+        <!-- KÄYTTÖÖNOTTO: GitHub-token salataan salasanalla ja tallennetaan repoon -->
+        <form id="setup-view" class="hidden bg-dark-800 border border-slate-700 rounded-2xl p-6 space-y-4">
+            <div class="space-y-2 text-sm text-slate-300">
+                <p class="font-semibold text-white">Käyttöönotto</p>
+                <p>Luo GitHubissa <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" class="text-blue-400 hover:underline">fine-grained personal access token</a>:</p>
+                <ul class="list-disc pl-5 text-slate-400 space-y-1">
+                    <li>Repository access: <span class="font-mono text-slate-300">Only select repositories → portfolio</span></li>
+                    <li>Permissions: <span class="font-mono text-slate-300">Contents → Read and write</span></li>
+                </ul>
+                <p class="text-slate-400">Token salataan valitsemallasi salasanalla ja tallennetaan repoon tiedostoon <span class="font-mono">admin-token.json</span>. Tiedosto on julkinen, joten käytä pitkää salasanaa.</p>
+            </div>
+            <input type="password" id="setup-token" autocomplete="off" placeholder="GitHub token (github_pat_...)"
+                   class="w-full bg-dark-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-blue-500">
+            <input type="password" id="setup-password" autocomplete="new-password" placeholder="Uusi salasana (vähintään 12 merkkiä)"
+                   class="w-full bg-dark-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500">
+            <input type="password" id="setup-password2" autocomplete="new-password" placeholder="Salasana uudelleen"
+                   class="w-full bg-dark-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500">
+            <div class="flex justify-end">
+                <button type="submit" class="px-5 py-2 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white">Tallenna</button>
+            </div>
+        </form>
+
+        <!-- PROJEKTIEN VALINTA -->
+        <div id="admin-view" class="hidden space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <p class="text-sm text-slate-400">Rastita projektit, jotka näkyvät portfoliossa.</p>
+                <div class="flex gap-2">
+                    <button id="select-all" class="px-3 py-1.5 rounded-lg text-xs text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700">Näytä kaikki</button>
+                    <button id="select-none" class="px-3 py-1.5 rounded-lg text-xs text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700">Piilota kaikki</button>
+                </div>
+            </div>
+            <div id="project-list" class="space-y-2"></div>
+            <div class="flex items-center justify-end gap-3 pt-2">
+                <span id="save-status" class="text-xs text-slate-400"></span>
+                <button id="save-btn" class="px-5 py-2 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20 disabled:opacity-50">Tallenna</button>
+            </div>
+        </div>
+
+        <p id="message" class="text-sm text-slate-400"></p>
+    </div>
+
+    <script>
+        const GITHUB_USERNAME = 'DesmondX80';
+        const REPO = 'portfolio';
+        const BRANCH = 'main';
+        const CONFIG_PATH = 'projects.json';
+        const TOKEN_PATH = 'admin-token.json';
+        const PBKDF2_ITERATIONS = 600000;
+
+        let token = null;
+        let configSha = null;
+        let repos = [];
+        let hidden = new Set();
+
+        const $ = id => document.getElementById(id);
+        const message = $('message');
+
+        // --- Apufunktiot ---
+
+        const toB64 = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes)));
+        const fromB64 = str => Uint8Array.from(atob(str.replace(/\s/g, '')), c => c.charCodeAt(0));
+
+        function esc(str) {
+            return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        function show(viewId) {
+            ['login-view', 'setup-view', 'admin-view'].forEach(id => $(id).classList.toggle('hidden', id !== viewId));
+            message.textContent = '';
+        }
+
+        async function deriveKey(password, salt, iterations) {
+            const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
+            return crypto.subtle.deriveKey(
+                { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+                base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+            );
+        }
+
+        async function encryptToken(plain, password) {
+            const salt = crypto.getRandomValues(new Uint8Array(16));
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+            const key = await deriveKey(password, salt, PBKDF2_ITERATIONS);
+            const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(plain));
+            return { v: 1, iterations: PBKDF2_ITERATIONS, salt: toB64(salt), iv: toB64(iv), data: toB64(data) };
+        }
+
+        async function decryptToken(blob, password) {
+            const key = await deriveKey(password, fromB64(blob.salt), blob.iterations);
+            const data = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(blob.iv) }, key, fromB64(blob.data));
+            return new TextDecoder().decode(data);
+        }
+
+        async function gh(path, options = {}) {
+            const response = await fetch(`https://api.github.com${path}`, {
+                ...options,
+                headers: {
+                    'Accept': 'application/vnd.github+json',
+                    'Authorization': `Bearer ${token}`,
+                    ...(options.body ? { 'Content-Type': 'application/json' } : {})
+                }
+            });
+            if (response.status === 404) return null;
+            if (!response.ok) throw new Error(`GitHub API ${response.status}: ${(await response.json().catch(() => ({}))).message || ''}`);
+            return response.json();
+        }
+
+        async function getFile(path) {
+            const file = await gh(`/repos/${GITHUB_USERNAME}/${REPO}/contents/${path}?ref=${BRANCH}`);
+            if (!file) return null;
+            return { sha: file.sha, text: new TextDecoder().decode(fromB64(file.content)) };
+        }
+
+        async function putFile(path, text, commitMessage, sha) {
+            const result = await gh(`/repos/${GITHUB_USERNAME}/${REPO}/contents/${path}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    message: commitMessage,
+                    content: toB64(new TextEncoder().encode(text)),
+                    branch: BRANCH,
+                    ...(sha ? { sha } : {})
+                })
+            });
+            return result.content.sha;
+        }
+
+        // --- Näkymät ---
+
+        async function init() {
+            if (new URLSearchParams(location.search).has('setup')) {
+                show('setup-view');
+                return;
+            }
+            const response = await fetch(TOKEN_PATH, { cache: 'no-cache' }).catch(() => null);
+            show(response && response.ok ? 'login-view' : 'setup-view');
+            if (response && response.ok) $('login-password').focus();
+        }
+
+        $('login-view').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            message.textContent = 'Tarkistetaan...';
+            try {
+                const blob = await (await fetch(TOKEN_PATH, { cache: 'no-cache' })).json();
+                token = await decryptToken(blob, $('login-password').value);
+            } catch {
+                message.textContent = 'Väärä salasana.';
+                return;
+            }
+            $('login-password').value = '';
+            await openAdmin();
+        });
+
+        $('setup-view').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const newToken = $('setup-token').value.trim();
+            const password = $('setup-password').value;
+            if (password.length < 12) { message.textContent = 'Salasanan pitää olla vähintään 12 merkkiä.'; return; }
+            if (password !== $('setup-password2').value) { message.textContent = 'Salasanat eivät täsmää.'; return; }
+
+            message.textContent = 'Tarkistetaan tokenia...';
+            token = newToken;
+            try {
+                const repo = await gh(`/repos/${GITHUB_USERNAME}/${REPO}`);
+                if (!repo || !repo.permissions || !repo.permissions.push) throw new Error('Tokenilla ei ole kirjoitusoikeutta repoon.');
+                const existing = await getFile(TOKEN_PATH);
+                const blob = await encryptToken(newToken, password);
+                await putFile(TOKEN_PATH, JSON.stringify(blob, null, 2) + '\n', 'Update encrypted admin token', existing && existing.sha);
+            } catch (error) {
+                token = null;
+                message.textContent = `Tallennus epäonnistui: ${error.message}`;
+                return;
+            }
+            ['setup-token', 'setup-password', 'setup-password2'].forEach(id => $(id).value = '');
+            history.replaceState(null, '', location.pathname);
+            await openAdmin();
+        });
+
+        async function openAdmin() {
+            show('admin-view');
+            message.textContent = 'Ladataan projekteja...';
+            try {
+                const [repoList, config] = await Promise.all([
+                    gh(`/users/${GITHUB_USERNAME}/repos?sort=updated&per_page=100`),
+                    getFile(CONFIG_PATH)
+                ]);
+                repos = repoList || [];
+                configSha = config ? config.sha : null;
+                hidden = new Set(config ? JSON.parse(config.text).hidden || [] : []);
+                message.textContent = '';
+                renderList();
+            } catch (error) {
+                message.textContent = `Lataus epäonnistui: ${error.message}`;
+            }
+        }
+
+        function renderList() {
+            $('project-list').innerHTML = repos.map(repo => `
+                <label class="flex items-start gap-3 p-4 rounded-xl bg-dark-800 border border-slate-700 hover:border-slate-600 cursor-pointer">
+                    <input type="checkbox" data-repo="${esc(repo.name)}" ${hidden.has(repo.name) ? '' : 'checked'}
+                           class="mt-0.5 rounded bg-dark-900 border-slate-600 text-blue-600 focus:ring-blue-500">
+                    <span class="min-w-0 flex-1">
+                        <span class="flex items-center justify-between gap-2">
+                            <span class="font-medium text-white truncate">${esc(repo.name)}</span>
+                            <span class="text-[11px] text-slate-400 shrink-0">${esc(repo.language || '')}</span>
+                        </span>
+                        <span class="block text-xs text-slate-400 truncate">${esc(repo.description || 'Ei kuvausta')}</span>
+                    </span>
+                </label>
+            `).join('');
+            $('save-status').textContent = '';
+        }
+
+        function setAll(visible) {
+            document.querySelectorAll('#project-list input[type=checkbox]').forEach(cb => cb.checked = visible);
+        }
+
+        $('select-all').addEventListener('click', () => setAll(true));
+        $('select-none').addEventListener('click', () => setAll(false));
+
+        $('save-btn').addEventListener('click', async () => {
+            const hiddenNames = [...document.querySelectorAll('#project-list input[type=checkbox]')]
+                .filter(cb => !cb.checked)
+                .map(cb => cb.dataset.repo)
+                .sort();
+            const text = JSON.stringify({ hidden: hiddenNames }, null, 2) + '\n';
+
+            $('save-btn').disabled = true;
+            $('save-status').textContent = 'Tallennetaan...';
+            try {
+                configSha = await putFile(CONFIG_PATH, text, 'Update visible portfolio projects', configSha);
+                hidden = new Set(hiddenNames);
+                $('save-status').textContent = 'Tallennettu. Sivusto päivittyy noin minuutin kuluttua.';
+            } catch (error) {
+                $('save-status').textContent = `Tallennus epäonnistui: ${error.message}`;
+            } finally {
+                $('save-btn').disabled = false;
+            }
+        });
+
+        init().finally(() => lucide.createIcons());
+    </script>
+</body>
+</html>
